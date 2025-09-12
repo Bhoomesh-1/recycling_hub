@@ -1,5 +1,7 @@
+// src/components/WasteClassification.tsx
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -9,7 +11,6 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useDropzone } from "react-dropzone";
@@ -23,7 +24,7 @@ import {
   Loader2,
 } from "lucide-react";
 import {
-  useWasteClassification,
+  classifyWaste,
   validateImageForClassification,
 } from "@/lib/ml-integration";
 import { useAuth } from "../App";
@@ -77,7 +78,7 @@ const categoryMeta: Record<
 const WasteClassification: React.FC = () => {
   const { user, updateUser } = useAuth();
   const { user: sbUser } = useSbAuth();
-  const { classifyWaste, loading, modelReady } = useWasteClassification();
+  // we now use classifyWaste from ml-integration
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [result, setResult] = useState<any>(null);
@@ -86,6 +87,8 @@ const WasteClassification: React.FC = () => {
     null,
   );
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const modelReady = true; // backend based
 
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
@@ -97,29 +100,38 @@ const WasteClassification: React.FC = () => {
         alert(validation.error);
         return;
       }
+
       setProcessing(true);
       setSelectedFile(file);
       setPreviewUrl(URL.createObjectURL(file));
-      const classification = await classifyWaste(file);
-      setResult(classification);
+
       try {
+        const classification = await classifyWaste(file);
+        setResult(classification);
+
         const type = (classification?.type ||
           "recyclable") as keyof typeof defaults.pointsPerClassification;
         const pts = defaults.pointsPerClassification[type] ?? 10;
-        if (sbUser?.id) {
-          await awardPoints(sbUser.id, pts, `Classified ${type} waste`);
+        try {
+          if (sbUser?.id) {
+            await awardPoints(sbUser.id, pts, `Classified ${type} waste`);
+          } else {
+            // fallback if Supabase not available
+            updateUser?.({ points: (user?.points || 0) + pts });
+          }
+        } catch (e) {
+          // awardPoints might fail; still update local UI
+          console.warn("Failed to persist points:", e);
+          updateUser?.({ points: (user?.points || 0) + (defaults.pointsPerClassification[type] ?? 10) });
         }
       } catch (e) {
-        const msg = (e as any)?.message || String(e);
-        console.warn("Failed to persist points:", msg);
-        const type = (classification?.type ||
-          "recyclable") as keyof typeof defaults.pointsPerClassification;
-        const pts = defaults.pointsPerClassification[type] ?? 10;
-        updateUser?.({ points: (user?.points || 0) + pts });
+        console.error("Classification error:", e);
+        alert("Failed to get prediction. Try again.");
+      } finally {
+        setProcessing(false);
       }
-      setProcessing(false);
     },
-    [classifyWaste, processing, sbUser?.id],
+    [processing, sbUser?.id, updateUser, user?.points],
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -196,9 +208,9 @@ const WasteClassification: React.FC = () => {
                     setProcessing(true);
                     setSelectedFile(file);
                     setPreviewUrl(URL.createObjectURL(file));
-                    const classification = await classifyWaste(file);
-                    setResult(classification);
                     try {
+                      const classification = await classifyWaste(file);
+                      setResult(classification);
                       const type = (classification?.type ||
                         "recyclable") as keyof typeof defaults.pointsPerClassification;
                       const pts = defaults.pointsPerClassification[type] ?? 10;
@@ -208,18 +220,22 @@ const WasteClassification: React.FC = () => {
                           pts,
                           `Classified ${type} waste`,
                         );
+                      } else {
+                        updateUser?.({ points: (user?.points || 0) + pts });
                       }
-                    } catch (e) {
-                      console.error("Failed to persist points:", e);
+                    } catch (err) {
+                      console.error("Failed to classify from file input:", err);
+                      alert("Failed to get prediction. Try again.");
+                    } finally {
+                      setProcessing(false);
                     }
-                    setProcessing(false);
                   }}
                 />
               </div>
             </div>
 
             <AnimatePresence>
-              {(previewUrl || loading) && (
+              {(previewUrl || processing) && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
