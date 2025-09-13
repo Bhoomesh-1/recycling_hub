@@ -19,7 +19,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
+import { 
   Coins,
   Gift,
   Star,
@@ -37,41 +37,168 @@ import {
   Leaf,
   Sparkles,
   Heart,
-  Trophy,
+  Trophy 
 } from "lucide-react";
 
-// Import voucher system
-import {
-  availableVouchers,
-  voucherCategories,
-  getVouchersByCategory,
-  getAvailableVouchers,
-  canRedeemVoucher,
-  calculateVoucherValue,
-  redeemVoucher,
-  getUserRedemptions,
-  getUserTransactions,
-  type Voucher,
-  type VoucherCategory,
-  type VoucherRedemption,
-  type UserTransaction,
-} from "@/lib/vouchers";
+// Mock voucher data and types
+interface Voucher {
+  id: string;
+  title: string;
+  brand: string;
+  description: string;
+  pointsRequired: number;
+  category: string;
+  image: string;
+  logo: string;
+  color: string;
+  validityDays: number;
+  currentStock?: number;
+  isActive: boolean;
+  value: string;
+}
 
-// Import real Supabase operations
-import {
-  redeemVoucherReal,
-  getUserRedemptionsReal,
-  getUserTransactionsReal,
-  getUserPoints,
-  fetchVouchers,
-  awardPoints,
-  InsufficientPointsError,
-  VoucherNotFoundError,
-  VoucherOutOfStockError,
-} from "@/lib/voucher-operations";
+interface VoucherRedemption {
+  id: string;
+  userId: string;
+  voucherId: string;
+  voucherCode: string;
+  pointsUsed: number;
+  status: 'active' | 'used' | 'expired';
+  redeemedAt: string;
+  expiresAt: string;
+  voucher?: Voucher;
+}
 
-// Import auth and user data
-import { useAuth, useUserProfile, mockData, supabase } from "@/lib/supabase";
+interface UserTransaction {
+  id: string;
+  userId: string;
+  type: 'earned' | 'redeemed' | 'bonus';
+  points: number;
+  description: string;
+  metadata?: any;
+  createdAt: string;
+}
+
+// Mock data
+const voucherCategories = {
+  food: { title: 'Food & Dining', icon: '🍕' },
+  shopping: { title: 'Shopping', icon: '🛍️' },
+  entertainment: { title: 'Entertainment', icon: '🎬' },
+  transport: { title: 'Transport', icon: '🚗' },
+  health: { title: 'Health & Wellness', icon: '💊' },
+  eco: { title: 'Eco-Friendly', icon: '🌱' }
+};
+
+const mockVouchers: Voucher[] = [
+  {
+    id: 'v1',
+    title: '20% Off All Items',
+    brand: 'Amazon',
+    description: 'Get 20% discount on your next purchase. Valid on electronics, books, and home items.',
+    pointsRequired: 500,
+    category: 'shopping',
+    image: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=400&h=200&fit=crop',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg',
+    color: '#FF9900',
+    validityDays: 30,
+    currentStock: 50,
+    isActive: true,
+    value: '₹200 OFF'
+  },
+  {
+    id: 'v2',
+    title: 'Free Coffee & Pastry',
+    brand: 'Starbucks',
+    description: 'Enjoy a complimentary coffee of your choice with a fresh pastry.',
+    pointsRequired: 300,
+    category: 'food',
+    image: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400&h=200&fit=crop',
+    logo: 'https://upload.wikimedia.org/wikipedia/en/d/d3/Starbucks_Corporation_Logo_2011.svg',
+    color: '#00704A',
+    validityDays: 15,
+    currentStock: 25,
+    isActive: true,
+    value: 'FREE ITEM'
+  },
+  {
+    id: 'v3',
+    title: 'Movie Ticket BOGO',
+    brand: 'PVR Cinemas',
+    description: 'Buy one movie ticket and get one free. Valid for all shows except premieres.',
+    pointsRequired: 800,
+    category: 'entertainment',
+    image: 'https://images.unsplash.com/photo-1489599904472-af1a1b851186?w=400&h=200&fit=crop',
+    logo: 'https://via.placeholder.com/40x40/000000/FFFFFF?text=PVR',
+    color: '#E50914',
+    validityDays: 45,
+    currentStock: 15,
+    isActive: true,
+    value: 'BOGO'
+  },
+  {
+    id: 'v4',
+    title: '₹100 Off Ride',
+    brand: 'Uber',
+    description: 'Get ₹100 off your next Uber ride. Valid for rides above ₹200.',
+    pointsRequired: 200,
+    category: 'transport',
+    image: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=400&h=200&fit=crop',
+    logo: 'https://via.placeholder.com/40x40/000000/FFFFFF?text=UBER',
+    color: '#000000',
+    validityDays: 7,
+    currentStock: 100,
+    isActive: true,
+    value: '₹100 OFF'
+  },
+  {
+    id: 'v5',
+    title: 'Eco-Friendly Kit',
+    brand: 'GreenLife',
+    description: 'Complete eco-friendly starter kit with bamboo products and reusable bags.',
+    pointsRequired: 1000,
+    category: 'eco',
+    image: 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=400&h=200&fit=crop',
+    logo: 'https://via.placeholder.com/40x40/22C55E/FFFFFF?text=GL',
+    color: '#22C55E',
+    validityDays: 60,
+    currentStock: 8,
+    isActive: true,
+    value: 'FREE KIT'
+  },
+  {
+    id: 'v6',
+    title: '30% Off Health Products',
+    brand: 'HealthKart',
+    description: 'Get 30% discount on all health supplements and wellness products.',
+    pointsRequired: 600,
+    category: 'health',
+    image: 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=400&h=200&fit=crop',
+    logo: 'https://via.placeholder.com/40x40/059669/FFFFFF?text=HK',
+    color: '#059669',
+    validityDays: 30,
+    currentStock: 30,
+    isActive: true,
+    value: '30% OFF'
+  }
+];
+
+// Utility functions
+const generateVoucherCode = (brand: string): string => {
+  const timestamp = Date.now().toString(36);
+  const random = Math.random().toString(36).substr(2, 4).toUpperCase();
+  const brandCode = brand.substr(0, 3).toUpperCase();
+  return `${brandCode}${random}${timestamp.substr(-4)}`;
+};
+
+const calculateVoucherValue = (voucher: Voucher): string => {
+  return voucher.value;
+};
+
+const canRedeemVoucher = (voucher: Voucher, userPoints: number): boolean => {
+  return voucher.isActive && 
+         userPoints >= voucher.pointsRequired && 
+         (voucher.currentStock === undefined || voucher.currentStock > 0);
+};
 
 // Component for animated counter
 const AnimatedCounter = ({
@@ -121,8 +248,7 @@ const VoucherCard = ({
   onRedeem: (voucher: Voucher) => void;
 }) => {
   const canRedeem = canRedeemVoucher(voucher, userPoints);
-  const isLowStock =
-    voucher.currentStock !== undefined && voucher.currentStock < 10;
+  const isLowStock = voucher.currentStock !== undefined && voucher.currentStock < 10;
 
   return (
     <motion.div
@@ -130,10 +256,7 @@ const VoucherCard = ({
       whileTap={{ scale: 0.98 }}
       transition={{ duration: 0.2 }}
     >
-      <Card
-        className="border-0 bg-slate-800/50 backdrop-blur-sm overflow-hidden relative group"
-        style={{ backgroundColor: "rgb(15, 23, 42)" }}
-      >
+      <Card className="border-0 bg-slate-800/50 backdrop-blur-sm overflow-hidden relative group">
         {/* Voucher Image */}
         <div className="relative h-32 overflow-hidden">
           <img
@@ -167,7 +290,7 @@ const VoucherCard = ({
 
           {/* Category Icon */}
           <div className="absolute bottom-3 left-3 text-white text-2xl">
-            {voucherCategories[voucher.category].icon}
+            {voucherCategories[voucher.category]?.icon || '🎁'}
           </div>
         </div>
 
@@ -273,10 +396,7 @@ const RedeemedVoucherCard = ({
   };
 
   return (
-    <Card
-      className="border-0 bg-slate-800/50 backdrop-blur-sm"
-      style={{ backgroundColor: "rgb(15, 23, 42)" }}
-    >
+    <Card className="border-0 bg-slate-800/50 backdrop-blur-sm">
       <CardContent className="p-4">
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-3">
@@ -287,7 +407,7 @@ const RedeemedVoucherCard = ({
                 className="w-full h-full object-contain"
                 onError={(e) => {
                   (e.target as HTMLImageElement).src =
-                    `https://via.placeholder.com/48x48/ffffff/000000?text=${redemption.voucher?.brand.charAt(0)}`;
+                    `https://via.placeholder.com/48x48/ffffff/000000?text=${redemption.voucher?.brand?.charAt(0) || 'V'}`;
                 }}
               />
             </div>
@@ -348,92 +468,29 @@ const RedeemedVoucherCard = ({
 };
 
 export default function Rewards() {
-  // Authentication and user data
-  const { user } = useAuth();
-  const { profile } = useUserProfile(user?.id);
-
   // State management
-  const [selectedCategory, setSelectedCategory] = useState<
-    VoucherCategory | "all"
-  >("all");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedVoucher, setSelectedVoucher] = useState<Voucher | null>(null);
   const [isRedeemDialogOpen, setIsRedeemDialogOpen] = useState(false);
   const [redemptions, setRedemptions] = useState<VoucherRedemption[]>([]);
   const [transactions, setTransactions] = useState<UserTransaction[]>([]);
   const [isRedeeming, setIsRedeeming] = useState(false);
+  const [userPoints, setUserPoints] = useState(2500); // Mock user points
+  const [vouchers, setVouchers] = useState<Voucher[]>(mockVouchers);
+  const [successMessage, setSuccessMessage] = useState<string>("");
 
-  // Use mock data if not authenticated
-  const userData = profile || mockData.userProfile;
-  const userPoints = userData.points;
-
-  // Load user data
-  useEffect(() => {
-    const loadUserData = async () => {
-      if (user?.id) {
-        try {
-          // Try Supabase operations first
-          if (supabase) {
-            const [userRedemptions, userTransactions] = await Promise.all([
-              getUserRedemptionsReal(user.id),
-              getUserTransactionsReal(user.id),
-            ]);
-            setRedemptions(userRedemptions);
-            setTransactions(userTransactions);
-          } else {
-            // Fall back to mock data
-            const [userRedemptions, userTransactions] = await Promise.all([
-              getUserRedemptions(user.id),
-              getUserTransactions(user.id),
-            ]);
-            setRedemptions(userRedemptions);
-            setTransactions(userTransactions);
-          }
-        } catch (error) {
-          console.error("Error loading user data:", error);
-          // Fall back to mock data on error
-          const [userRedemptions, userTransactions] = await Promise.all([
-            getUserRedemptions(user.id),
-            getUserTransactions(user.id),
-          ]);
-          setRedemptions(userRedemptions);
-          setTransactions(userTransactions);
-        }
-      }
-    };
-
-    loadUserData();
-  }, [user?.id]);
-
-  // State for vouchers from database
-  const [dbVouchers, setDbVouchers] = useState<Voucher[]>([]);
-
-  // Load vouchers from database
-  useEffect(() => {
-    const loadVouchers = async () => {
-      if (supabase) {
-        try {
-          const vouchers = await fetchVouchers();
-          setDbVouchers(vouchers);
-        } catch (error) {
-          console.error("Error loading vouchers from database:", error);
-          setDbVouchers(availableVouchers);
-        }
-      } else {
-        setDbVouchers(availableVouchers);
-      }
-    };
-
-    loadVouchers();
-  }, []);
+  // Mock user data
+  const userData = {
+    points: userPoints,
+    waste_classified: 156,
+    eco_score: 85,
+    name: "EcoWarrior"
+  };
 
   // Filter vouchers based on selected category
-  const vouchersToUse = dbVouchers.length > 0 ? dbVouchers : availableVouchers;
-  const filteredVouchers =
-    selectedCategory === "all"
-      ? vouchersToUse.filter((v) => v.isActive)
-      : vouchersToUse.filter(
-          (v) => v.category === selectedCategory && v.isActive,
-        );
+  const filteredVouchers = selectedCategory === "all"
+    ? vouchers.filter((v) => v.isActive)
+    : vouchers.filter((v) => v.category === selectedCategory && v.isActive);
 
   // Handle voucher redemption
   const handleRedeemVoucher = (voucher: Voucher) => {
@@ -442,67 +499,87 @@ export default function Rewards() {
   };
 
   const confirmRedemption = async () => {
-    if (!selectedVoucher || !user?.id) return;
+    if (!selectedVoucher) return;
 
     setIsRedeeming(true);
     try {
-      let redemption: VoucherRedemption;
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
 
-      // Try Supabase operations first
-      if (supabase) {
-        redemption = await redeemVoucherReal(selectedVoucher.id, user.id);
-
-        // Add success transaction to state
-        const transaction: UserTransaction = {
-          id: `txn_${Date.now()}`,
-          userId: user.id,
-          type: "redeemed",
-          points: -selectedVoucher.pointsRequired,
-          description: `Redeemed: ${selectedVoucher.title}`,
-          metadata: { voucherCode: redemption.voucherCode },
-          createdAt: new Date().toISOString(),
-        };
-        setTransactions((prev) => [transaction, ...prev]);
-      } else {
-        // Fall back to mock operation
-        redemption = await redeemVoucher(
-          selectedVoucher.id,
-          user.id,
-          userPoints,
-        );
+      // Check if user has enough points
+      if (userPoints < selectedVoucher.pointsRequired) {
+        throw new Error(`Insufficient points. You need ${selectedVoucher.pointsRequired} points but only have ${userPoints}.`);
       }
 
+      // Check stock
+      if (selectedVoucher.currentStock !== undefined && selectedVoucher.currentStock <= 0) {
+        throw new Error("This voucher is currently out of stock.");
+      }
+
+      // Generate unique voucher code
+      const voucherCode = generateVoucherCode(selectedVoucher.brand);
+      
+      // Calculate expiry date
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + selectedVoucher.validityDays);
+
+      // Create redemption record
+      const redemption: VoucherRedemption = {
+        id: `red_${Date.now()}`,
+        userId: "user123",
+        voucherId: selectedVoucher.id,
+        voucherCode: voucherCode,
+        pointsUsed: selectedVoucher.pointsRequired,
+        status: 'active',
+        redeemedAt: new Date().toISOString(),
+        expiresAt: expiresAt.toISOString(),
+        voucher: selectedVoucher
+      };
+
+      // Create transaction record
+      const transaction: UserTransaction = {
+        id: `txn_${Date.now()}`,
+        userId: "user123",
+        type: 'redeemed',
+        points: -selectedVoucher.pointsRequired,
+        description: `Redeemed: ${selectedVoucher.title}`,
+        metadata: { 
+          voucherCode: voucherCode,
+          brand: selectedVoucher.brand,
+          category: selectedVoucher.category 
+        },
+        createdAt: new Date().toISOString(),
+      };
+
+      // Update state
       setRedemptions((prev) => [redemption, ...prev]);
+      setTransactions((prev) => [transaction, ...prev]);
+      setUserPoints((prev) => prev - selectedVoucher.pointsRequired);
+
+      // Update voucher stock
+      setVouchers(prev => prev.map(v => 
+        v.id === selectedVoucher.id 
+          ? { ...v, currentStock: (v.currentStock || 0) - 1 }
+          : v
+      ));
+
       setIsRedeemDialogOpen(false);
       setSelectedVoucher(null);
+      setSuccessMessage(`🎉 Successfully redeemed ${selectedVoucher.title}! Your voucher code: ${voucherCode}`);
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => setSuccessMessage(""), 5000);
 
-      // Show success message
-      alert(
-        `Successfully redeemed ${selectedVoucher.title}! Your voucher code: ${redemption.voucherCode}`,
-      );
     } catch (error) {
       console.error("Redemption failed:", error);
-
-      let errorMessage = "Redemption failed. Please try again.";
-
-      if (error instanceof InsufficientPointsError) {
-        errorMessage = `Insufficient points. You need ${selectedVoucher.pointsRequired} points but only have ${userPoints}.`;
-      } else if (error instanceof VoucherNotFoundError) {
-        errorMessage = "This voucher is no longer available.";
-      } else if (error instanceof VoucherOutOfStockError) {
-        errorMessage = "This voucher is currently out of stock.";
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-
-      alert(errorMessage);
+      alert(error instanceof Error ? error.message : "Redemption failed. Please try again.");
     } finally {
       setIsRedeeming(false);
     }
   };
 
   // Animation variants
-  const containerVariants: any = {
+  const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
       opacity: 1,
@@ -513,7 +590,7 @@ export default function Rewards() {
     },
   };
 
-  const itemVariants: any = {
+  const itemVariants = {
     hidden: { y: 20, opacity: 0 },
     visible: {
       y: 0,
@@ -530,6 +607,23 @@ export default function Rewards() {
         animate="visible"
         className="space-y-6"
       >
+        {/* Success Message */}
+        <AnimatePresence>
+          {successMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -50 }}
+              className="fixed top-4 right-4 z-50"
+            >
+              <Alert className="bg-green-500/20 border-green-500/50 text-green-400 max-w-md">
+                <CheckCircle className="h-4 w-4" />
+                <AlertDescription>{successMessage}</AlertDescription>
+              </Alert>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Header */}
         <motion.div variants={itemVariants}>
           <div className="text-center mb-8">
@@ -544,10 +638,7 @@ export default function Rewards() {
 
         {/* Eco-Points Balance Section */}
         <motion.div variants={itemVariants}>
-          <Card
-            className="border-0 bg-gradient-to-br from-amber-500/10 to-yellow-600/20 backdrop-blur-sm mb-8"
-            style={{ backgroundColor: "rgb(15, 23, 42)" }}
-          >
+          <Card className="border-0 bg-gradient-to-br from-amber-500/10 to-yellow-600/20 backdrop-blur-sm mb-8">
             <CardContent className="p-8 text-center">
               <div className="flex items-center justify-center gap-4 mb-6">
                 <motion.div
@@ -631,11 +722,11 @@ export default function Rewards() {
                 >
                   All Categories
                 </Button>
-                {Object.entries(voucherCategories).map(([key, category]) => (
+                {Object.entries(voucherCategories || fallbackCategories).map(([key, category]) => (
                   <Button
                     key={key}
                     variant={selectedCategory === key ? "default" : "outline"}
-                    onClick={() => setSelectedCategory(key as VoucherCategory)}
+                    onClick={() => setSelectedCategory(key)}
                     className={`${
                       selectedCategory === key
                         ? "bg-red-600 text-white"
@@ -701,7 +792,7 @@ export default function Rewards() {
                     Start redeeming vouchers to see them here!
                   </p>
                   <Button
-                    onClick={() => (window.location.hash = "#vouchers")}
+                    onClick={() => setSelectedCategory("all")}
                     className="bg-green-600 hover:bg-green-700"
                   >
                     <Gift className="w-4 h-4 mr-2" />
@@ -713,10 +804,7 @@ export default function Rewards() {
 
             {/* Transaction History Tab */}
             <TabsContent value="history" className="space-y-6">
-              <Card
-                className="border-0 bg-slate-800/50 backdrop-blur-sm"
-                style={{ backgroundColor: "rgb(15, 23, 42)" }}
-              >
+              <Card className="border-0 bg-slate-800/50 backdrop-blur-sm">
                 <CardHeader>
                   <CardTitle className="text-white">
                     Transaction History
@@ -775,13 +863,10 @@ export default function Rewards() {
                                   <div className="flex items-center gap-1 text-gray-400">
                                     <Clock className="w-3 h-3" />
                                     <span>
-                                      {new Date(
-                                        transaction.createdAt,
-                                      ).toLocaleString()}
+                                      {new Date(transaction.createdAt).toLocaleString()}
                                     </span>
                                   </div>
 
-                                  {/* Transaction Type Badge */}
                                   <Badge
                                     className={`text-xs px-2 py-1 ${
                                       transaction.type === "earned"
@@ -796,10 +881,8 @@ export default function Rewards() {
                                   </Badge>
                                 </div>
 
-                                {/* Transaction Metadata */}
                                 {transaction.metadata &&
-                                  Object.keys(transaction.metadata).length >
-                                    0 && (
+                                  Object.keys(transaction.metadata).length > 0 && (
                                     <div className="mt-2 pt-2 border-t border-slate-600/30">
                                       <div className="grid grid-cols-2 gap-2 text-xs">
                                         {transaction.metadata.voucherCode && (
@@ -809,6 +892,16 @@ export default function Rewards() {
                                             </span>
                                             <span className="text-white font-mono ml-2">
                                               {transaction.metadata.voucherCode}
+                                            </span>
+                                          </div>
+                                        )}
+                                        {transaction.metadata.brand && (
+                                          <div>
+                                            <span className="text-gray-400">
+                                              Brand:
+                                            </span>
+                                            <span className="text-white ml-2">
+                                              {transaction.metadata.brand}
                                             </span>
                                           </div>
                                         )}
@@ -822,31 +915,6 @@ export default function Rewards() {
                                             </span>
                                           </div>
                                         )}
-                                        {transaction.metadata.confidence && (
-                                          <div>
-                                            <span className="text-gray-400">
-                                              Confidence:
-                                            </span>
-                                            <span className="text-white ml-2">
-                                              {Math.round(
-                                                transaction.metadata
-                                                  .confidence * 100,
-                                              )}
-                                              %
-                                            </span>
-                                          </div>
-                                        )}
-                                        {transaction.metadata.location && (
-                                          <div>
-                                            <span className="text-gray-400">
-                                              Location:
-                                            </span>
-                                            <span className="text-white ml-2">
-                                              {transaction.metadata.location
-                                                .city || "Unknown"}
-                                            </span>
-                                          </div>
-                                        )}
                                       </div>
                                     </div>
                                   )}
@@ -856,7 +924,6 @@ export default function Rewards() {
                         </div>
                       ))}
 
-                      {/* Transaction Summary */}
                       <div className="mt-6 p-4 rounded-lg bg-gradient-to-r from-green-500/10 to-blue-500/10 border border-green-500/20">
                         <h4 className="text-white font-semibold mb-3">
                           Transaction Summary
@@ -864,8 +931,7 @@ export default function Rewards() {
                         <div className="grid grid-cols-3 gap-4 text-sm">
                           <div className="text-center">
                             <div className="text-2xl font-bold text-green-400 mb-1">
-                              +
-                              {transactions
+                              +{transactions
                                 .filter((t) => t.type === "earned")
                                 .reduce((sum, t) => sum + t.points, 0)}
                             </div>
@@ -875,10 +941,7 @@ export default function Rewards() {
                             <div className="text-2xl font-bold text-red-400 mb-1">
                               {transactions
                                 .filter((t) => t.type === "redeemed")
-                                .reduce(
-                                  (sum, t) => sum + Math.abs(t.points),
-                                  0,
-                                )}
+                                .reduce((sum, t) => sum + Math.abs(t.points), 0)}
                             </div>
                             <p className="text-gray-400">Total Spent</p>
                           </div>
@@ -906,10 +969,7 @@ export default function Rewards() {
 
       {/* Redemption Confirmation Dialog */}
       <Dialog open={isRedeemDialogOpen} onOpenChange={setIsRedeemDialogOpen}>
-        <DialogContent
-          className="bg-slate-800 border-slate-700 text-white"
-          style={{ backgroundColor: "rgb(15, 23, 42)" }}
-        >
+        <DialogContent className="bg-slate-800 border-slate-700 text-white">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Gift className="w-5 h-5" />
@@ -953,8 +1013,7 @@ export default function Rewards() {
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  This action cannot be undone. Points will be deducted from
-                  your account.
+                  This action cannot be undone. Points will be deducted from your account.
                 </AlertDescription>
               </Alert>
 
